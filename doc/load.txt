@@ -1,0 +1,73 @@
+Target
+root
+Nm4DLbwl
+50.97.233.134
+
+
+Tsung Controller
+root
+P82hwBGN
+108.168.233.8
+
+
+Tsung 1 (@ 64,000 connections per node - 16 nodes required!)
+root
+C3U342x9
+108.168.233.3
+
+
+Ubuntu 12.04 LTS
+
+
+apt-get update
+apt-get upgrade
+apt-get -y install tsung htop vim-nox
+
+
+ssh-keygen on controller and all slave nodes. All nodes must be
+able to speak to each other.
+
+
+tsung -f load.xml -w 0 start
+
+
+Ctrl+C then "a" to abort load test.
+
+
+watch -n 10 /usr/lib/tsung/bin/tsung_stats.pl
+
+python -m SimpleHTTPServer
+
+/etc/hosts
+108.168.233.3 tsung1
+
+
+In order to force authenticity checks, run from the controller:
+ssh tsung1 erl
+
+
+/etc/security/limits.conf
+root    soft    nofile  1000000
+root    hard    nofile  1000000
+
+
+/etc/pam.d/common-session
+session required pam_limits.so
+
+
+/etc/sysctl.conf
+fs.file-max = 2000000
+net.core.somaxconn = 1000000
+net.core.netdev_max_backlog = 10000
+net.ipv4.ip_local_port_range = 1024 65535
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_tw_recycle = 1
+net.ipv4.tcp_syncookies = 0
+net.ipv4.tcp_synack_retries = 1
+net.ipv4.tcp_keepalive_time = 300
+net.ipv4.tcp_max_syn_backlog = 10000
+
+
+Reload sysctl settings without restarting.
+sysctl -p
+

@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!DOCTYPE tsung SYSTEM "/usr/share/tsung/tsung-1.0.dtd">
+<tsung loglevel="notice" version="1.0">
+    <clients>
+        <client host="tsung1" weight="1" maxusers="64000" cpu="12">
+            <ip value="108.168.233.3"></ip>
+        </client>
+    </clients>
+
+    <servers>
+        <server host="50.97.233.134" port="8080" type="tcp"/>
+    </servers>
+
+    <load>
+        <arrivalphase phase="1" duration="10" unit="minute">
+            <users maxnumber="100" arrivalrate="500" unit="second"/>
+        </arrivalphase>
+    </load>
+
+    <sessions>
+        <session probability="100" name="get" type="ts_http">
+            <for from="1" to="2000" var="i">
+                <request>
+                    <http url="/" method="GET" version="1.1" content_type="application/json"/>
+                </request>
+
+                <thinktime value="5"></thinktime>
+            </for>
+        </session>
+    </sessions>
+</tsung>
+
