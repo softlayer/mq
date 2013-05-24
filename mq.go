@@ -1,7 +1,7 @@
 package main
 
 import "time"
-import . "net/http"
+import "net/http"
 
 type FrontHandler struct {
 	Store     *Store
@@ -12,11 +12,11 @@ type FrontHandler struct {
 type Session struct {
 	Store    *Store
 	Match    *RouteMatch
-	Request  *Request
-	Response ResponseWriter
+	Request  *http.Request
+	Response http.ResponseWriter
 }
 
-func (handler *FrontHandler) ServeHTTP(response ResponseWriter, request *Request) {
+func (handler *FrontHandler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	match := handler.Router.Match(request.Method, request.URL.Path)
 
 	if match != nil {
@@ -31,7 +31,7 @@ func (handler *FrontHandler) ServeHTTP(response ResponseWriter, request *Request
 		return
 	}
 
-	response.WriteHeader(StatusNotFound)
+	response.WriteHeader(http.StatusNotFound)
 }
 
 func main() {
@@ -43,8 +43,8 @@ func main() {
 	router.AddRoute("CreateQueue", "PUT", "^/(?P<queue>[a-z]+)$")
 	router.AddRoute("DeleteQueue", "DELETE", "^/(?P<queue>[a-z]+)$")
 	router.AddRoute("CreateMessage", "POST", "^/(?P<queue>[a-z]+)/messages$")
-	router.AddRoute("GetMessages", "GET", "^/(?P<queue>[a-z]+)/messages$")
-	router.AddRoute("DeleteMessage", "DELETE", "^/(?P<queue>[a-z]+)/messages/(?P<message>[a-z]+)$")
+	router.AddRoute("GetMessage", "GET", "^/(?P<queue>[a-z]+)/messages$")
+	router.AddRoute("DeleteMessage", "DELETE", "^/(?P<queue>[a-z]+)/messages/(?P<message>[a-z0-9-]+)$")
 
 	handler := &FrontHandler{
 		Store:     store,
@@ -58,10 +58,10 @@ func main() {
 	handler.Endpoints["CreateQueue"] = CreateQueue
 	handler.Endpoints["DeleteQueue"] = DeleteQueue
 	handler.Endpoints["CreateMessage"] = CreateMessage
-	handler.Endpoints["GetMessages"] = GetMessages
+	handler.Endpoints["GetMessage"] = GetMessage
 	handler.Endpoints["DeleteMessage"] = DeleteMessage
 
-	server := &Server{
+	server := &http.Server{
 		Addr:           ":8080",
 		Handler:        handler,
 		ReadTimeout:    10 * time.Second,
