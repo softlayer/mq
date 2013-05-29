@@ -1,58 +1,82 @@
 package main
 
+import "os"
 import "fmt"
-import "syscall"
+import "log"
+import "path"
+import "strconv"
+import "strings"
+import "github.com/howeyc/fsnotify"
 
-// import "unsafe"
+// To use in testing:
+// go run mover.go /tmp/mq/new /tmp/mq/queues 0
 
-func main() {
-	directory := "inbound"
+var source string
+var destination string
+var delay int // TODO: Honor this value!
 
-	fmt.Println("Mover starting up...")
+func deliver(messages chan string) {
+	for message := range messages {
+		// Our message file name will contain the relative directory and
+		// file name. We only care about the file name.
+		_, file := path.Split(message)
 
-	notify, err := syscall.InotifyInit()
+		// The file will be named "queueName:randomMessageId". Split on the
+		// colon to obtain the final target directory.
+		pieces := strings.Split(file, ":")
 
-	if err != nil {
-		panic("Could not initialize notifier")
-	}
-
-	defer syscall.Close(notify)
-
-	watch, err := syscall.InotifyAddWatch(notify, directory, syscall.IN_CREATE|syscall.IN_DELETE)
-
-	if err != nil {
-		panic("Could not establish watcher on source directory")
-	}
-
-	defer syscall.Close(watch)
-
-	for {
-		var buffer [syscall.SizeofInotifyEvent * 4096]byte
-
-		// for {
-		n, err := syscall.Read(notify, buffer[:])
+		// Move our source file into the destination using its new name.
+		err := os.Rename(path.Join(source, file), path.Join(destination, pieces[0], pieces[1]))
 
 		if err != nil {
-			fmt.Print(err)
-			break
+			log.Println("Could not move file:", file)
+		} else {
+			log.Println("Moved file:", file)
 		}
-
-		// Parse the raw event buffer.
-		/*
-		        for offset <= uint32(n-syscall.SizeofInotifyEvent) {
-			    	var offset uint32 = 0
-
-					raw := (*syscall.InotifyEvent)(unsafe.Pointer(&buffer[offset]))
-					event := new(Event)
-					event.Mask = uint32(raw.Mask)
-					event.Cookie = uint32(raw.Cookie)
-					nameLen := uint32(raw.Len)
-				}
-		*/
-
-		fmt.Println(n)
-		fmt.Println(buffer)
-
-		// }
 	}
+
+	return
+}
+
+func main() {
+	if len(os.Args) != 4 {
+		fmt.Println("mover [source] [destination] [delay]")
+		return
+	}
+
+	source = os.Args[1]
+	destination = os.Args[2]
+	delay, _ = strconv.Atoi(os.Args[3])
+
+	watcher, err := fsnotify.NewWatcher()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	done := make(chan bool)
+	messages := make(chan string)
+
+	go func() {
+		for {
+			select {
+			case ev := <-watcher.Event:
+				messages <- ev.Name
+			case err := <-watcher.Error:
+				log.Println("error:", err)
+			}
+		}
+	}()
+
+	err = watcher.WatchFlags(source, fsnotify.IN_MODIFY)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	go deliver(messages)
+
+	<-done
+
+	watcher.Close()
 }

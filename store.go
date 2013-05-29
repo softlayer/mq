@@ -16,9 +16,10 @@ type Message struct {
 }
 
 type Store struct {
-	Root        string
-	NewFolder   string
-	DelayFolder string
+	Root         string
+	NewFolder    string
+	DelayFolder  string
+	QueuesFolder string
 }
 
 func FirstFileInDir(dirPath string) string {
@@ -49,16 +50,18 @@ func FirstFileInDir(dirPath string) string {
 
 func (store *Store) Prepare() {
 	store.Root = "/tmp/mq"
-	store.NewFolder = path.Join(store.Root, "_new")
-	store.DelayFolder = path.Join(store.Root, "_delay")
+	store.NewFolder = path.Join(store.Root, "new")
+	store.DelayFolder = path.Join(store.Root, "delay")
+	store.QueuesFolder = path.Join(store.Root, "queues")
 
 	os.Mkdir(store.Root, 0777)
 	os.Mkdir(store.NewFolder, 0777)
 	os.Mkdir(store.DelayFolder, 0777)
+	os.Mkdir(store.QueuesFolder, 0777)
 }
 
 func (store *Store) SaveQueue(queue *Queue) {
-	os.Mkdir(path.Join(store.Root, queue.Id), 0777)
+	os.Mkdir(path.Join(store.QueuesFolder, queue.Id), 0777)
 }
 
 func (store *Store) LoadQueue(queue *Queue) bool {
