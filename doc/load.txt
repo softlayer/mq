@@ -71,3 +71,16 @@ net.ipv4.tcp_max_syn_backlog = 10000
 Reload sysctl settings without restarting.
 sysctl -p
 
+
+Raid Controller Tuning
+
+/usr/StorMan/arcconf DELETE 1 LOGICALDRIVE 1
+/usr/StorMan/arcconf getconfig 1 pd
+/usr/StorMan/arcconf create  1 LOGICALDRIVE Stripesize 16 Wcache WBB MAX 0 0 1 0 2 0 3
+mkfs.xfs -d sw=3,su=16384 -f /dev/sdb
+
+307200kb per second
+     4kb write chunk size
+
+dd if=/dev/zero of=small count=200000000 bs=4k conv=fdatasync
+
