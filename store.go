@@ -111,7 +111,7 @@ func (store *Store) SaveMessage(queue *Queue, message *Message) bool {
 }
 
 func (store *Store) LoadNextMessage(queue *Queue) *Message {
-	queuePath := path.Join(store.Root, queue.Id)
+	queuePath := path.Join(store.QueuesFolder, queue.Id)
 	messageId := FirstFileInDir(queuePath)
 
 	if messageId == "" {

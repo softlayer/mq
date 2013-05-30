@@ -6,6 +6,7 @@ import "log"
 import "path"
 import "strconv"
 import "strings"
+import "time"
 import "code.google.com/p/go.exp/inotify"
 
 // To use in testing:
@@ -13,7 +14,6 @@ import "code.google.com/p/go.exp/inotify"
 
 var source string
 var destination string
-var delay int // TODO: Honor this value!
 
 func deliver(messages chan string) {
 	for message := range messages {
@@ -46,7 +46,12 @@ func main() {
 
 	source = os.Args[1]
 	destination = os.Args[2]
-	delay, _ = strconv.Atoi(os.Args[3])
+	delay, err := strconv.Atoi(os.Args[3])
+
+	if err != nil {
+		fmt.Println("Delay must be an integer.")
+		return
+	}
 
 	watcher, err := inotify.NewWatcher()
 
@@ -61,7 +66,14 @@ func main() {
 		for {
 			select {
 			case ev := <-watcher.Event:
-				messages <- ev.Name
+				if delay > 0 {
+					go func() {
+						time.Sleep(time.Duration(delay) * time.Millisecond)
+						messages <- ev.Name
+					}()
+				} else {
+					messages <- ev.Name
+				}
 			case err := <-watcher.Error:
 				log.Println("error:", err)
 			}
