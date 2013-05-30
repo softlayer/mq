@@ -6,7 +6,7 @@ import "log"
 import "path"
 import "strconv"
 import "strings"
-import "github.com/howeyc/fsnotify"
+import "code.google.com/p/go.exp/inotify"
 
 // To use in testing:
 // go run mover.go /tmp/mq/new /tmp/mq/queues 0
@@ -48,7 +48,7 @@ func main() {
 	destination = os.Args[2]
 	delay, _ = strconv.Atoi(os.Args[3])
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := inotify.NewWatcher()
 
 	if err != nil {
 		log.Fatal(err)
@@ -68,7 +68,7 @@ func main() {
 		}
 	}()
 
-	err = watcher.WatchFlags(source, fsnotify.IN_MODIFY)
+	err = watcher.AddWatch(source, inotify.IN_CLOSE_WRITE|inotify.IN_MOVED_TO)
 
 	if err != nil {
 		log.Fatal(err)
