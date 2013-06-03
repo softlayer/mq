@@ -49,7 +49,10 @@ func FirstFileInDir(dirPath string) string {
 }
 
 func (store *Store) Prepare() {
-	store.Root = "/tmp/mq"
+	if store.Root == "" {
+		panic("No root directory specified!")
+	}
+
 	store.NewFolder = path.Join(store.Root, "new")
 	store.DelayFolder = path.Join(store.Root, "delay")
 	store.QueuesFolder = path.Join(store.Root, "queues")
@@ -65,7 +68,7 @@ func (store *Store) SaveQueue(queue *Queue) {
 }
 
 func (store *Store) LoadQueue(queue *Queue) bool {
-	_, err := os.Stat(path.Join(store.Root, queue.Id))
+	_, err := os.Stat(path.Join(store.QueuesFolder, queue.Id))
 
 	if err != nil {
 		return false
@@ -77,7 +80,7 @@ func (store *Store) LoadQueue(queue *Queue) bool {
 func (store *Store) DeleteQueue(queue *Queue) {
 	// TODO: We need to move all files from New and Delay into position to
 	// be reaped.
-	os.RemoveAll(path.Join(store.Root, queue.Id))
+	os.RemoveAll(path.Join(store.QueuesFolder, queue.Id))
 }
 
 func (store *Store) SaveMessage(queue *Queue, message *Message) bool {
