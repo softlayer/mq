@@ -7,6 +7,7 @@ import "testing"
 var root string = "/tmp/mq-test"
 var queueId string = "q"
 var messageId string = "m"
+var messageContent []byte = []byte("c")
 
 func setup() *Store {
 	store := &Store{Root: root}
@@ -60,6 +61,35 @@ func TestQueueLifecycle(t *testing.T) {
 
 	if os.Chdir(queuePath) == nil {
 		t.Error("Our queue directory wasn't properly destroyed")
+	}
+
+	teardown()
+}
+
+func TestMessageCreation(t *testing.T) {
+	store := setup()
+
+	file := queueId + ":" + messageId
+
+	queue := &Queue{Id: queueId}
+	message := &Message{Id: messageId, Content: messageContent}
+	messagePath := path.Join(store.NewFolder, file)
+
+	store.SaveQueue(queue)
+	store.SaveMessage(queue, message)
+
+	stat, err := os.Stat(messagePath)
+
+	if err != nil {
+		t.Error("Could not stat message after creation")
+	}
+
+	if stat.Name() != file {
+		t.Error("Message created with incorrect file name")
+	}
+
+	if stat.Size() != int64(len(messageContent)) {
+		t.Error("Message created with incorrect file content")
 	}
 
 	teardown()
