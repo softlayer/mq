@@ -7,7 +7,7 @@ import "testing"
 var root string = "/tmp/mq-test"
 var queueId string = "q"
 var messageId string = "m"
-var messageContent []byte = []byte("c")
+var messageContent []byte = []byte("abcdefghijklmnopqrstuvwxyz")
 
 func setup() *Store {
 	store := &Store{Root: root}
@@ -60,26 +60,32 @@ func TestQueueLifecycle(t *testing.T) {
 	store.DeleteQueue(queue)
 
 	if os.Chdir(queuePath) == nil {
-		t.Error("Our queue directory wasn't properly destroyed")
+		t.Error("Queue directory wasn't properly destroyed")
 	}
 
 	teardown()
 }
 
-func TestMessageCreation(t *testing.T) {
+func TestMessageLifecycle(t *testing.T) {
 	store := setup()
 
 	file := queueId + ":" + messageId
 
 	queue := &Queue{Id: queueId}
 	message := &Message{Id: messageId, Content: messageContent}
-	messagePath := path.Join(store.NewFolder, file)
+
+	// All the pathing we will need to check as the message moves through its
+	// lifecycle.
+	messagePathNew := path.Join(store.NewFolder, file)
+	messagePathAvailable := path.Join(store.QueuesFolder, queueId, messageId)
+	messagePathDelay := path.Join(store.DelayFolder, file)
 
 	store.SaveQueue(queue)
 	store.SaveMessage(queue, message)
 
-	stat, err := os.Stat(messagePath)
+	stat, err := os.Stat(messagePathNew)
 
+	// Make sure the file was created with the correct name and content.
 	if err != nil {
 		t.Error("Could not stat message after creation")
 	}
@@ -90,6 +96,66 @@ func TestMessageCreation(t *testing.T) {
 
 	if stat.Size() != int64(len(messageContent)) {
 		t.Error("Message created with incorrect file content")
+	}
+
+	// Note: we are simulating an external daemon. Normally the storage
+	// mechanism has no idea how to sort messages.
+	os.Rename(messagePathNew, messagePathAvailable)
+
+	// When we fetch a message, it should contain the same ID we saved to the
+	// new folder.	
+	if store.LoadNextMessage(queue).Id != message.Id {
+		t.Error("Unable to fetch correct message")
+	}
+
+	// Verify after we fetched the message was temporarily moved to the delay
+	// folder.
+	stat, err = os.Stat(messagePathDelay)
+
+	if err != nil {
+		t.Error("Could not stat message after fetching")
+	}
+
+	if stat.Name() != file {
+		t.Error("Message moved with incorrect file name")
+	}
+
+	if stat.Size() != int64(len(messageContent)) {
+		t.Error("Message moved with incorrect file content")
+	}
+
+	// Finally, delete the message.
+	if store.DeleteMessage(queue, message) == false {
+		t.Error("Could not delete message")
+	}
+
+	// We will attempt to delete the message from all the places it could
+	// exist. We should always get a non-nil response (an error) from each of
+	// these calls.
+	if os.Remove(messagePathNew) == nil {
+		t.Error("Found message file in 'new'")
+	}
+
+	if os.Remove(messagePathAvailable) == nil {
+		t.Error("Found message file in 'available'")
+	}
+
+	if os.Remove(messagePathDelay) == nil {
+		t.Error("Found message file in 'delay'")
+	}
+
+	teardown()
+}
+
+func BenchmarkMessageCreation(b *testing.B) {
+	store := setup()
+
+	queue := &Queue{Id: queueId}
+	store.SaveQueue(queue)
+
+	for i := 0; i < b.N; i++ {
+		message := &Message{Id: getRandomUUID(), Content: messageContent}
+		store.SaveMessage(queue, message)
 	}
 
 	teardown()
