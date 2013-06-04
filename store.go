@@ -1,10 +1,12 @@
 package main
 
-import "errors"
-import "os"
-import "io/ioutil"
-import "path"
-import "path/filepath"
+import (
+	"errors"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+)
 
 type Queue struct {
 	Id string

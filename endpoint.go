@@ -1,7 +1,9 @@
 package main
 
-import "io/ioutil"
-import "net/http"
+import (
+	"io/ioutil"
+	"net/http"
+)
 
 // TODO: Every call requires the "queue" parameter. Maybe move this into a
 // middleware-like mechanism to allocate a queue struct if present?

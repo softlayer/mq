@@ -1,7 +1,9 @@
 package main
 
-import "time"
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 type FrontHandler struct {
 	Store     *Store

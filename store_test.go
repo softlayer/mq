@@ -1,13 +1,17 @@
 package main
 
-import "os"
-import "path"
-import "testing"
+import (
+	"os"
+	"path"
+	"testing"
+)
 
-var root string = "/tmp/mq-test"
-var queueId string = "q"
-var messageId string = "m"
-var messageContent []byte = []byte("abcdefghijklmnopqrstuvwxyz")
+var (
+	root           string = "/tmp/mq-test"
+	queueId        string = "q"
+	messageId      string = "m"
+	messageContent []byte = []byte("abcdefghijklmnopqrstuvwxyz")
+)
 
 func setup() *Store {
 	store := &Store{Root: root}

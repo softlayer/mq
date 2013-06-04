@@ -1,7 +1,9 @@
 package main
 
-import "fmt"
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 func main() {
 	limiter := time.Tick(10 * time.Millisecond)

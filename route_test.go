@@ -1,9 +1,12 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
-// Regexp pattern to be used throughout the routing tests.
-var pattern string = "/(?P<queue>[a-z]+)"
+var (
+	pattern string = "/(?P<queue>[a-z]+)"
+)
 
 func TestRouterCreation(t *testing.T) {
 	r := &Router{}

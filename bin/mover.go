@@ -1,19 +1,20 @@
 package main
 
-import "os"
-import "fmt"
-import "log"
-import "path"
-import "strconv"
-import "strings"
-import "time"
-import "code.google.com/p/go.exp/inotify"
+import (
+	"code.google.com/p/go.exp/inotify"
+	"fmt"
+	"log"
+	"os"
+	"path"
+	"strconv"
+	"strings"
+	"time"
+)
 
-// To use in testing:
-// go run mover.go /tmp/mq/new /tmp/mq/queues 0
-
-var source string
-var destination string
+var (
+	source      string
+	destination string
+)
 
 func deliver(messages chan string) {
 	for message := range messages {

@@ -1,6 +1,8 @@
 package main
 
-import "regexp"
+import (
+	"regexp"
+)
 
 type Route struct {
 	Name       string

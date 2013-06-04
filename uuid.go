@@ -1,7 +1,9 @@
 package main
 
-import "fmt"
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 // TODO: Make this time-sequence based so our messages can be at least somewhat
 // ordered. Random works for now.
