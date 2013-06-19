@@ -56,7 +56,7 @@ func TestQueueLifecycle(t *testing.T) {
 	}
 
 	// Can we verify a queue exists after creation?
-	if store.LoadQueue(queue) == false {
+	if store.FetchQueue(queue) == nil {
 		t.Error("Could not verify queue exists after creation")
 	}
 
@@ -107,8 +107,8 @@ func TestMessageLifecycle(t *testing.T) {
 	os.Rename(messagePathNew, messagePathAvailable)
 
 	// When we fetch a message, it should contain the same ID we saved to the
-	// new folder.	
-	if store.LoadNextMessage(queue).Id != message.Id {
+	// new folder.
+	if store.FetchMessage(queue).Id != message.Id {
 		t.Error("Unable to fetch correct message")
 	}
 

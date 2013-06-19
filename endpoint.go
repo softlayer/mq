@@ -5,13 +5,10 @@ import (
 	"net/http"
 )
 
-// TODO: Every call requires the "queue" parameter. Maybe move this into a
-// middleware-like mechanism to allocate a queue struct if present?
-
 func GetQueue(session *Session) {
 	queue := &Queue{Id: session.Match.Variables["queue"]}
 
-	if session.Store.LoadQueue(queue) {
+	if session.Store.FetchQueue(queue) != nil {
 		session.Response.WriteHeader(http.StatusOK)
 		return
 	}
@@ -36,7 +33,7 @@ func DeleteQueue(session *Session) {
 func GetMessage(session *Session) {
 	queue := &Queue{Id: session.Match.Variables["queue"]}
 
-	message := session.Store.LoadNextMessage(queue)
+	message := session.Store.FetchMessage(queue)
 
 	if message != nil {
 		session.Response.Header().Set("X-Message-Id", message.Id)
@@ -63,11 +60,16 @@ func CreateMessage(session *Session) {
 		Content: body,
 	}
 
-	// TODO: Check to see if this exploded before sending back
-	// a successful status.
-	session.Store.SaveMessage(queue, message)
-	session.Response.Header().Set("X-Message-Id", message.Id)
-	session.Response.WriteHeader(http.StatusCreated)
+	success := session.Store.SaveMessage(queue, message)
+
+	if success {
+		session.Response.Header().Set("X-Message-Id", message.Id)
+		session.Response.WriteHeader(http.StatusCreated)
+		return
+	}
+
+	session.Response.Header().Set("Retry-After", "10")
+	session.Response.WriteHeader(http.StatusServiceUnavailable)
 }
 
 func DeleteMessage(session *Session) {

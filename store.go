@@ -17,21 +17,34 @@ type Message struct {
 	Content []byte
 }
 
-type Store struct {
-	Root         string
-	NewFolder    string
-	DelayFolder  string
-	QueuesFolder string
+type SaveRequest struct {
+	Queue    *Queue
+	Message  *Message
+	Response chan bool
 }
 
-func FirstFileInDir(dirPath string) string {
-	var i int = 0
+type FetchRequest struct {
+	Queue    *Queue
+	Response chan *Message
+}
+
+type Store struct {
+	Root          string
+	NewFolder     string
+	DelayFolder   string
+	QueuesFolder  string
+	SaveRequests  chan *SaveRequest
+	FetchRequests chan *FetchRequest
+}
+
+func NextFile(dirPath string) string {
+	var i int
 	var firstFile string
 
 	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		i += 1
 
-		// The walk will include the initial directory as its first "visit." 
+		// The walk will include the initial directory as its first "visit."
 		// We need to skip that. Returning nil moves us along.
 		if i == 1 {
 			return nil
@@ -50,6 +63,97 @@ func FirstFileInDir(dirPath string) string {
 	return firstFile
 }
 
+func MessageSaver(store *Store) {
+	for {
+		request := <-store.SaveRequests
+
+		messageFile := request.Queue.Id + ":" + request.Message.Id
+		messagePath := path.Join(store.NewFolder, messageFile)
+
+		file, err := os.OpenFile(messagePath, os.O_RDWR|os.O_CREATE, 0777)
+
+		// If we weren't able to open the file for writing,
+		// exit early. No need to close it.
+		if err != nil {
+			request.Response <- false
+			continue
+		}
+
+		defer file.Close()
+
+		n, err := file.Write(request.Message.Content)
+
+		// Could we write the entire message? If we couldn't, we
+		// need to clean up and report back.
+		if n < len(request.Message.Content) {
+			// Nuke the file...
+			os.Remove(messagePath)
+
+			// ...and return a negative response.
+			request.Response <- false
+			continue
+		}
+
+		// If we couldn't write at all, break out. The defer will
+		// close the handle.
+		if err != nil {
+			request.Response <- false
+			continue
+		}
+
+		// Make sure the file is written to disk!
+		file.Sync()
+
+		request.Response <- true
+	}
+}
+
+func MessageFetcher(store *Store) {
+	for {
+		request := <-store.FetchRequests
+
+		queuePath := path.Join(store.QueuesFolder, request.Queue.Id)
+		messageId := NextFile(queuePath)
+
+		if messageId == "" {
+			request.Response <- nil
+			continue
+		}
+
+		messagePath := path.Join(queuePath, messageId)
+
+		// We don't need to lock anything. Our fetch requests have been
+		// piplelined to this piont.
+		file, err := os.Open(messagePath)
+
+		if err != nil {
+			request.Response <- nil
+			continue
+		}
+
+		defer file.Close()
+
+		// We can still fail here. Make sure to account for a nasty
+		// read failure.
+		messageContent, err := ioutil.ReadAll(file)
+
+		if err != nil {
+			request.Response <- nil
+			continue
+		}
+
+		message := &Message{
+			Id:      messageId,
+			Content: messageContent,
+		}
+
+		// Got it! Move the file and return our message.
+		os.Rename(messagePath, path.Join(store.DelayFolder, request.Queue.Id+":"+message.Id))
+
+		request.Response <- message
+	}
+}
+
 func (store *Store) Prepare() {
 	if store.Root == "" {
 		panic("No root directory specified!")
@@ -63,97 +167,59 @@ func (store *Store) Prepare() {
 	os.Mkdir(store.NewFolder, 0777)
 	os.Mkdir(store.DelayFolder, 0777)
 	os.Mkdir(store.QueuesFolder, 0777)
+
+	store.SaveRequests = make(chan *SaveRequest)
+	store.FetchRequests = make(chan *FetchRequest)
+
+	// TODO: Start up a variable number of these based on run-time config.
+	go MessageSaver(store)
+	go MessageFetcher(store)
 }
 
 func (store *Store) SaveQueue(queue *Queue) {
 	os.Mkdir(path.Join(store.QueuesFolder, queue.Id), 0777)
 }
 
-func (store *Store) LoadQueue(queue *Queue) bool {
+func (store *Store) FetchQueue(queue *Queue) *Queue {
 	_, err := os.Stat(path.Join(store.QueuesFolder, queue.Id))
 
 	if err != nil {
-		return false
+		return nil
 	}
 
-	return true
+	// No need to re-allocate, this queue exists. Simply return
+	// it to be used.
+	return queue
 }
 
 func (store *Store) DeleteQueue(queue *Queue) {
-	// TODO: We need to move all files from New and Delay into position to
-	// be reaped.
 	os.RemoveAll(path.Join(store.QueuesFolder, queue.Id))
 }
 
 func (store *Store) SaveMessage(queue *Queue, message *Message) bool {
-	messageFile := queue.Id + ":" + message.Id
-	messagePath := path.Join(store.NewFolder, messageFile)
-
-	file, err := os.OpenFile(messagePath, os.O_RDWR|os.O_CREATE, 0777)
-
-	// If we weren't able to open the file for writing,
-	// exit early. No need to close it.
-	if err != nil {
-		return false
+	request := &SaveRequest{
+		Queue:    queue,
+		Message:  message,
+		Response: make(chan bool),
 	}
 
-	defer file.Close()
+	store.SaveRequests <- request
 
-	// TODO: Check to make sure how much we wrote is how
-	// much we were given.
-	_, err = file.Write(message.Content)
-
-	// If we couldn't write, break out. The defer will
-	// close the handle.
-	if err != nil {
-		return false
-	}
-
-	// Make sure the file is written to disk!
-	file.Sync()
-
-	return true
+	return <-request.Response
 }
 
-func (store *Store) LoadNextMessage(queue *Queue) *Message {
-	queuePath := path.Join(store.QueuesFolder, queue.Id)
-	messageId := FirstFileInDir(queuePath)
-
-	if messageId == "" {
-		return nil
+func (store *Store) FetchMessage(queue *Queue) *Message {
+	request := &FetchRequest{
+		Queue:    queue,
+		Response: make(chan *Message),
 	}
 
-	messagePath := path.Join(queuePath, messageId)
+	// TODO: Solve race condition when multiple consumers are
+	// servicing these requests. We can hash on queue name to
+	// make sure each request lands in a predictable channel.
+	store.FetchRequests <- request
 
-	// TODO: Acquire an exclusive lock on this file before
-	// attempting to read.
-	file, err := os.Open(messagePath)
-
-	if err != nil {
-		return nil
-	}
-
-	defer file.Close()
-
-	// We can still fail here. Make sure to account for a nasty
-	// read failure.
-	messageContent, err := ioutil.ReadAll(file)
-
-	if err != nil {
-		return nil
-	}
-
-	message := &Message{
-		Id:      messageId,
-		Content: messageContent,
-	}
-
-	// Got it! Defer moving the file and return our message.
-	defer func() {
-		os.Rename(messagePath, path.Join(store.DelayFolder, queue.Id+":"+message.Id))
-	}()
-
-	return message
+	return <-request.Response
 }
 
 func (store *Store) DeleteMessage(queue *Queue, message *Message) bool {
