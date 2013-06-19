@@ -1,8 +1,15 @@
 package main
 
 import (
+	"flag"
 	"net/http"
 	"time"
+)
+
+var (
+	rootPath    string
+	numSavers   int
+	numFetchers int
 )
 
 type FrontHandler struct {
@@ -36,8 +43,21 @@ func (handler *FrontHandler) ServeHTTP(response http.ResponseWriter, request *ht
 	response.WriteHeader(http.StatusNotFound)
 }
 
+func init() {
+	flag.StringVar(&rootPath, "rootPath", "/tmp/mq", "File system storage path")
+	flag.IntVar(&numSavers, "numSavers", 25, "Number of concurrent message savers")
+	flag.IntVar(&numFetchers, "numFetchers", 1, "Number of concurrent message fetchers")
+
+	flag.Parse()
+}
+
 func main() {
-	store := &Store{Root: "/tmp/mq"}
+	store := &Store{
+		RootPath:    rootPath,
+		NumSavers:   numSavers,
+		NumFetchers: numFetchers,
+	}
+
 	store.Prepare()
 
 	router := &Router{}

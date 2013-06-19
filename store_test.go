@@ -7,28 +7,35 @@ import (
 )
 
 var (
-	root           string = "/tmp/mq-test"
-	queueId        string = "q"
-	messageId      string = "m"
-	messageContent []byte = []byte("abcdefghijklmnopqrstuvwxyz")
+	testRootPath    string = "/tmp/mq-test"
+	testNumSavers   int    = 1
+	testNumFetchers int    = 1
+	queueId         string = "q"
+	messageId       string = "m"
+	messageContent  []byte = []byte("abcdefghijklmnopqrstuvwxyz")
 )
 
 func setup() *Store {
-	store := &Store{Root: root}
+	store := &Store{
+		RootPath:    testRootPath,
+		NumSavers:   testNumSavers,
+		NumFetchers: testNumFetchers,
+	}
+
 	store.Prepare()
 
 	return store
 }
 
 func teardown() {
-	os.RemoveAll(root)
+	os.RemoveAll(rootPath)
 }
 
 func TestFolderCreation(t *testing.T) {
 	store := setup()
 
 	folders := make(map[string]string)
-	folders["root"] = store.Root
+	folders["root"] = store.RootPath
 	folders["new"] = store.NewFolder
 	folders["delay"] = store.DelayFolder
 	folders["queues"] = store.QueuesFolder

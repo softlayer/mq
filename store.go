@@ -29,12 +29,14 @@ type FetchRequest struct {
 }
 
 type Store struct {
-	Root          string
+	RootPath      string
 	NewFolder     string
 	DelayFolder   string
 	QueuesFolder  string
 	SaveRequests  chan *SaveRequest
 	FetchRequests chan *FetchRequest
+	NumSavers     int
+	NumFetchers   int
 }
 
 func NextFile(dirPath string) string {
@@ -63,7 +65,33 @@ func NextFile(dirPath string) string {
 	return firstFile
 }
 
-func MessageSaver(store *Store) {
+func (store *Store) Prepare() {
+	if store.RootPath == "" {
+		panic("No root directory specified!")
+	}
+
+	store.NewFolder = path.Join(store.RootPath, "new")
+	store.DelayFolder = path.Join(store.RootPath, "delay")
+	store.QueuesFolder = path.Join(store.RootPath, "queues")
+
+	os.Mkdir(store.RootPath, 0777)
+	os.Mkdir(store.NewFolder, 0777)
+	os.Mkdir(store.DelayFolder, 0777)
+	os.Mkdir(store.QueuesFolder, 0777)
+
+	store.SaveRequests = make(chan *SaveRequest, 1000)
+	store.FetchRequests = make(chan *FetchRequest, 1000)
+
+	for i := 0; i < store.NumSavers; i++ {
+		go store.MessageSaver()
+	}
+
+	for i := 0; i < store.NumFetchers; i++ {
+		go store.MessageFetcher()
+	}
+}
+
+func (store *Store) MessageSaver() {
 	for {
 		request := <-store.SaveRequests
 
@@ -108,7 +136,7 @@ func MessageSaver(store *Store) {
 	}
 }
 
-func MessageFetcher(store *Store) {
+func (store *Store) MessageFetcher() {
 	for {
 		request := <-store.FetchRequests
 
@@ -152,28 +180,6 @@ func MessageFetcher(store *Store) {
 
 		request.Response <- message
 	}
-}
-
-func (store *Store) Prepare() {
-	if store.Root == "" {
-		panic("No root directory specified!")
-	}
-
-	store.NewFolder = path.Join(store.Root, "new")
-	store.DelayFolder = path.Join(store.Root, "delay")
-	store.QueuesFolder = path.Join(store.Root, "queues")
-
-	os.Mkdir(store.Root, 0777)
-	os.Mkdir(store.NewFolder, 0777)
-	os.Mkdir(store.DelayFolder, 0777)
-	os.Mkdir(store.QueuesFolder, 0777)
-
-	store.SaveRequests = make(chan *SaveRequest)
-	store.FetchRequests = make(chan *FetchRequest)
-
-	// TODO: Start up a variable number of these based on run-time config.
-	go MessageSaver(store)
-	go MessageFetcher(store)
 }
 
 func (store *Store) SaveQueue(queue *Queue) {
@@ -225,7 +231,7 @@ func (store *Store) FetchMessage(queue *Queue) *Message {
 func (store *Store) DeleteMessage(queue *Queue, message *Message) bool {
 	// The currently available messages in the queue is the most likely
 	// place the message will exist.
-	err := os.Remove(path.Join(store.Root, queue.Id, message.Id))
+	err := os.Remove(path.Join(store.RootPath, queue.Id, message.Id))
 
 	if err == nil {
 		return true
