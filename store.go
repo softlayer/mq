@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"hash/crc32"
 	"io/ioutil"
 	"os"
 	"path"
@@ -33,10 +34,12 @@ type Store struct {
 	NewFolder     string
 	DelayFolder   string
 	QueuesFolder  string
-	SaveRequests  chan *SaveRequest
-	FetchRequests chan *FetchRequest
-	NumSavers     int
-	NumFetchers   int
+	SaveRequests  []chan *SaveRequest
+	FetchRequests []chan *FetchRequest
+}
+
+func (queue *Queue) Hash() int {
+	return int(crc32.ChecksumIEEE([]byte(queue.Id)))
 }
 
 func NextFile(dirPath string) string {
@@ -65,7 +68,7 @@ func NextFile(dirPath string) string {
 	return firstFile
 }
 
-func (store *Store) Prepare() {
+func (store *Store) Prepare(savers int, fetchers int) {
 	if store.RootPath == "" {
 		panic("No root directory specified!")
 	}
@@ -79,106 +82,116 @@ func (store *Store) Prepare() {
 	os.Mkdir(store.DelayFolder, 0777)
 	os.Mkdir(store.QueuesFolder, 0777)
 
-	store.SaveRequests = make(chan *SaveRequest, 1000)
-	store.FetchRequests = make(chan *FetchRequest, 1000)
+	store.SaveRequests = make([]chan *SaveRequest, savers)
+	store.FetchRequests = make([]chan *FetchRequest, fetchers)
 
-	for i := 0; i < store.NumSavers; i++ {
-		go store.MessageSaver()
+	for i := 0; i < savers; i++ {
+		// Make a channel for each go routine.
+		store.SaveRequests[i] = make(chan *SaveRequest, 1000)
+
+		// Tell the message saver which channel it's supposed to
+		// consume from.
+		go store.MessageSaver(i)
 	}
 
-	for i := 0; i < store.NumFetchers; i++ {
-		go store.MessageFetcher()
-	}
-}
+	for i := 0; i < fetchers; i++ {
+		// Make a channel for each go routine.
+		store.FetchRequests[i] = make(chan *FetchRequest, 1000)
 
-func (store *Store) MessageSaver() {
-	for {
-		request := <-store.SaveRequests
-
-		messageFile := request.Queue.Id + ":" + request.Message.Id
-		messagePath := path.Join(store.NewFolder, messageFile)
-
-		file, err := os.OpenFile(messagePath, os.O_RDWR|os.O_CREATE, 0777)
-
-		// If we weren't able to open the file for writing,
-		// exit early. No need to close it.
-		if err != nil {
-			request.Response <- false
-			continue
-		}
-
-		defer file.Close()
-
-		n, err := file.Write(request.Message.Content)
-
-		// Could we write the entire message? If we couldn't, we
-		// need to clean up and report back.
-		if n < len(request.Message.Content) {
-			// Nuke the file...
-			os.Remove(messagePath)
-
-			// ...and return a negative response.
-			request.Response <- false
-			continue
-		}
-
-		// If we couldn't write at all, break out. The defer will
-		// close the handle.
-		if err != nil {
-			request.Response <- false
-			continue
-		}
-
-		// Make sure the file is written to disk!
-		file.Sync()
-
-		request.Response <- true
+		// Tell the message fetcher which channel it's supposed to
+		// consume from.
+		go store.MessageFetcher(i)
 	}
 }
 
-func (store *Store) MessageFetcher() {
+func (store *Store) SaveRequestToFile(request *SaveRequest) bool {
+	messageFile := request.Queue.Id + ":" + request.Message.Id
+	messagePath := path.Join(store.NewFolder, messageFile)
+
+	file, err := os.OpenFile(messagePath, os.O_RDWR|os.O_CREATE, 0777)
+
+	// If we weren't able to open the file for writing,
+	// exit early. No need to close it.
+	if err != nil {
+		return false
+	}
+
+	defer file.Close()
+
+	n, err := file.Write(request.Message.Content)
+
+	// Could we write the entire message? If we couldn't, we
+	// need to clean up and report back.
+	if n < len(request.Message.Content) {
+		// Nuke the file...
+		os.Remove(messagePath)
+
+		// ...and return a negative response.
+		return false
+	}
+
+	// If we couldn't write at all, break out. The defer will
+	// close the handle.
+	if err != nil {
+		return false
+	}
+
+	// Make sure the file is written to disk!
+	file.Sync()
+
+	return true
+}
+
+func (store *Store) FetchRequestFromFile(request *FetchRequest) *Message {
+	queuePath := path.Join(store.QueuesFolder, request.Queue.Id)
+	messageId := NextFile(queuePath)
+
+	if messageId == "" {
+		return nil
+	}
+
+	messagePath := path.Join(queuePath, messageId)
+
+	// We don't need to lock anything. Our fetch requests have been
+	// piplelined to this piont.
+	file, err := os.Open(messagePath)
+
+	if err != nil {
+		return nil
+	}
+
+	defer file.Close()
+
+	// We can still fail here. Make sure to account for a nasty
+	// read failure.
+	messageContent, err := ioutil.ReadAll(file)
+
+	if err != nil {
+		return nil
+	}
+
+	message := &Message{
+		Id:      messageId,
+		Content: messageContent,
+	}
+
+	// Got it! Move the file and return our message.
+	os.Rename(messagePath, path.Join(store.DelayFolder, request.Queue.Id+":"+message.Id))
+
+	return message
+}
+
+func (store *Store) MessageSaver(index int) {
 	for {
-		request := <-store.FetchRequests
+		request := <-store.SaveRequests[index]
+		request.Response <- store.SaveRequestToFile(request)
+	}
+}
 
-		queuePath := path.Join(store.QueuesFolder, request.Queue.Id)
-		messageId := NextFile(queuePath)
-
-		if messageId == "" {
-			request.Response <- nil
-			continue
-		}
-
-		messagePath := path.Join(queuePath, messageId)
-
-		// We don't need to lock anything. Our fetch requests have been
-		// piplelined to this piont.
-		file, err := os.Open(messagePath)
-
-		if err != nil {
-			request.Response <- nil
-			continue
-		}
-
-		defer file.Close()
-
-		// We can still fail here. Make sure to account for a nasty
-		// read failure.
-		messageContent, err := ioutil.ReadAll(file)
-
-		if err != nil {
-			request.Response <- nil
-			continue
-		}
-
-		message := &Message{
-			Id:      messageId,
-			Content: messageContent,
-		}
-
-		// Got it! Move the file and return our message.
-		os.Rename(messagePath, path.Join(store.DelayFolder, request.Queue.Id+":"+message.Id))
-
-		request.Response <- message
+func (store *Store) MessageFetcher(index int) {
+	for {
+		request := <-store.FetchRequests[index]
+		request.Response <- store.FetchRequestFromFile(request)
 	}
 }
 
@@ -206,10 +219,13 @@ func (store *Store) SaveMessage(queue *Queue, message *Message) bool {
 	request := &SaveRequest{
 		Queue:    queue,
 		Message:  message,
-		Response: make(chan bool),
+		Response: make(chan bool, 1),
 	}
 
-	store.SaveRequests <- request
+	// All message save requests need to be serialized on a per-queue
+	// basis. There is no race here, but it prevents a single queue from
+	// overrunning available i/o.
+	store.SaveRequests[queue.Hash()%len(store.SaveRequests)] <- request
 
 	return <-request.Response
 }
@@ -217,13 +233,13 @@ func (store *Store) SaveMessage(queue *Queue, message *Message) bool {
 func (store *Store) FetchMessage(queue *Queue) *Message {
 	request := &FetchRequest{
 		Queue:    queue,
-		Response: make(chan *Message),
+		Response: make(chan *Message, 1),
 	}
 
-	// TODO: Solve race condition when multiple consumers are
-	// servicing these requests. We can hash on queue name to
-	// make sure each request lands in a predictable channel.
-	store.FetchRequests <- request
+	// All message fetch requests need to be serialized on a per-queue
+	// basis. This eliminates a "what's the next message in this queue" race
+	// on a per-app server basis.
+	store.FetchRequests[queue.Hash()%len(store.FetchRequests)] <- request
 
 	return <-request.Response
 }

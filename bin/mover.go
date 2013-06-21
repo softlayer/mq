@@ -2,11 +2,10 @@ package main
 
 import (
 	"code.google.com/p/go.exp/inotify"
-	"fmt"
+	"flag"
 	"log"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -14,6 +13,7 @@ import (
 var (
 	source      string
 	destination string
+	delay       int
 )
 
 func deliver(messages chan string) {
@@ -39,21 +39,15 @@ func deliver(messages chan string) {
 	return
 }
 
+func init() {
+	flag.StringVar(&source, "source", "/tmp/mq/new", "Source for messages to be moved")
+	flag.StringVar(&destination, "destimation", "/tmp/mq/queues", "Destination for moved messages")
+	flag.IntVar(&delay, "delay", 1000, "Delay in milliseconds to wait before moving a message")
+
+	flag.Parse()
+}
+
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Println("mover [source] [destination] [delay]")
-		return
-	}
-
-	source = os.Args[1]
-	destination = os.Args[2]
-	delay, err := strconv.Atoi(os.Args[3])
-
-	if err != nil {
-		fmt.Println("Delay must be an integer.")
-		return
-	}
-
 	watcher, err := inotify.NewWatcher()
 
 	if err != nil {

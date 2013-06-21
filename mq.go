@@ -7,9 +7,9 @@ import (
 )
 
 var (
-	rootPath    string
-	numSavers   int
-	numFetchers int
+	root     string
+	savers   int
+	fetchers int
 )
 
 type FrontHandler struct {
@@ -44,21 +44,16 @@ func (handler *FrontHandler) ServeHTTP(response http.ResponseWriter, request *ht
 }
 
 func init() {
-	flag.StringVar(&rootPath, "rootPath", "/tmp/mq", "File system storage path")
-	flag.IntVar(&numSavers, "numSavers", 25, "Number of concurrent message savers")
-	flag.IntVar(&numFetchers, "numFetchers", 1, "Number of concurrent message fetchers")
+	flag.StringVar(&root, "root", "/tmp/mq", "File system storage path")
+	flag.IntVar(&savers, "savers", 25, "Number of concurrent message savers")
+	flag.IntVar(&fetchers, "fetchers", 25, "Number of concurrent message fetchers")
 
 	flag.Parse()
 }
 
 func main() {
-	store := &Store{
-		RootPath:    rootPath,
-		NumSavers:   numSavers,
-		NumFetchers: numFetchers,
-	}
-
-	store.Prepare()
+	store := &Store{RootPath: root}
+	store.Prepare(savers, fetchers)
 
 	router := &Router{}
 	router.AddRoute("GetQueue", "GET", "^/(?P<queue>[a-z]+)$")

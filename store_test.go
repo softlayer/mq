@@ -16,19 +16,14 @@ var (
 )
 
 func setup() *Store {
-	store := &Store{
-		RootPath:    testRootPath,
-		NumSavers:   testNumSavers,
-		NumFetchers: testNumFetchers,
-	}
-
-	store.Prepare()
+	store := &Store{RootPath: testRootPath}
+	store.Prepare(testNumSavers, testNumFetchers)
 
 	return store
 }
 
 func teardown() {
-	os.RemoveAll(rootPath)
+	os.RemoveAll(testRootPath)
 }
 
 func TestFolderCreation(t *testing.T) {
