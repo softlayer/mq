@@ -41,7 +41,7 @@ func deliver(messages chan string) {
 
 func init() {
 	flag.StringVar(&source, "source", "/tmp/mq/new", "Source for messages to be moved")
-	flag.StringVar(&destination, "destimation", "/tmp/mq/queues", "Destination for moved messages")
+	flag.StringVar(&destination, "destination", "/tmp/mq/queues", "Destination for moved messages")
 	flag.IntVar(&delay, "delay", 1000, "Delay in milliseconds to wait before moving a message")
 
 	flag.Parse()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log"
 	"net/http"
 	"time"
 )
@@ -52,6 +53,7 @@ func init() {
 }
 
 func main() {
+	// Prepare storage back-end for use.
 	store := &Store{RootPath: root}
 	store.Prepare(savers, fetchers)
 
@@ -81,10 +83,10 @@ func main() {
 	server := &http.Server{
 		Addr:           ":8080",
 		Handler:        handler,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
+		ReadTimeout:    120 * time.Second,
+		WriteTimeout:   120 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	server.ListenAndServe()
+	log.Println(server.ListenAndServe())
 }

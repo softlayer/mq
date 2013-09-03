@@ -87,7 +87,7 @@ func (store *Store) Prepare(savers int, fetchers int) {
 
 	for i := 0; i < savers; i++ {
 		// Make a channel for each go routine.
-		store.SaveRequests[i] = make(chan *SaveRequest, 1000)
+		store.SaveRequests[i] = make(chan *SaveRequest)
 
 		// Tell the message saver which channel it's supposed to
 		// consume from.
@@ -96,7 +96,7 @@ func (store *Store) Prepare(savers int, fetchers int) {
 
 	for i := 0; i < fetchers; i++ {
 		// Make a channel for each go routine.
-		store.FetchRequests[i] = make(chan *FetchRequest, 1000)
+		store.FetchRequests[i] = make(chan *FetchRequest)
 
 		// Tell the message fetcher which channel it's supposed to
 		// consume from.
@@ -219,7 +219,7 @@ func (store *Store) SaveMessage(queue *Queue, message *Message) bool {
 	request := &SaveRequest{
 		Queue:    queue,
 		Message:  message,
-		Response: make(chan bool, 1),
+		Response: make(chan bool),
 	}
 
 	// All message save requests need to be serialized on a per-queue
@@ -233,7 +233,7 @@ func (store *Store) SaveMessage(queue *Queue, message *Message) bool {
 func (store *Store) FetchMessage(queue *Queue) *Message {
 	request := &FetchRequest{
 		Queue:    queue,
-		Response: make(chan *Message, 1),
+		Response: make(chan *Message),
 	}
 
 	// All message fetch requests need to be serialized on a per-queue
