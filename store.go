@@ -1,12 +1,10 @@
 package main
 
 import (
-	"errors"
 	"hash/crc32"
 	"io/ioutil"
 	"os"
 	"path"
-	"path/filepath"
 )
 
 type Queue struct {
@@ -43,29 +41,21 @@ func (queue *Queue) Hash() int {
 }
 
 func NextFile(dirPath string) string {
-	var i int
-	var firstFile string
+	dir, err := os.Open(dirPath)
 
-	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		i += 1
+	if err != nil {
+		return ""
+	}
 
-		// The walk will include the initial directory as its first "visit."
-		// We need to skip that. Returning nil moves us along.
-		if i == 1 {
-			return nil
-		}
+	defer dir.Close()
 
-		// The walk might bomb out under certain conditions. That's fine.
-		if err != nil {
-			return err
-		}
+	files, err := dir.Readdir(1)
 
-		firstFile = info.Name()
+	if err != nil || len(files) == 0 {
+		return ""
+	}
 
-		return errors.New("Found a file!")
-	})
-
-	return firstFile
+	return files[0].Name()
 }
 
 func (store *Store) Prepare(savers int, fetchers int) {

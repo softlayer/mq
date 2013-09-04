@@ -12,7 +12,7 @@ $GO build -o build/mq-reaper bin/reaper.go
 
 ssh $USER@$HOST 'supervisorctl stop all'
 
-scp etc/mq.conf $USER@$HOST:/etc/supervisor/conf.d/mq.conf
+scp etc/supervisor/conf.d/mq.conf $USER@$HOST:/etc/supervisor/conf.d/mq.conf
 
 ssh $USER@$HOST 'supervisorctl reread; supervisorctl update'
 
