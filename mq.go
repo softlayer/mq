@@ -8,9 +8,8 @@ import (
 )
 
 var (
-	root     string
-	savers   int
-	fetchers int
+	root    string
+	workers int
 )
 
 type FrontHandler struct {
@@ -45,17 +44,19 @@ func (handler *FrontHandler) ServeHTTP(response http.ResponseWriter, request *ht
 }
 
 func init() {
+	flag.IntVar(&workers, "workers", 1, "Number of workers")
 	flag.StringVar(&root, "root", "/tmp/mq", "File system storage path")
-	flag.IntVar(&savers, "savers", 25, "Number of concurrent message savers")
-	flag.IntVar(&fetchers, "fetchers", 25, "Number of concurrent message fetchers")
 
 	flag.Parse()
 }
 
 func main() {
-	// Prepare storage back-end for use.
-	store := &Store{RootPath: root}
-	store.Prepare(savers, fetchers)
+	store := NewStore(workers, root)
+
+	// Our storage mechanism needs to make sure our folders
+	// and workers are standing up.
+	store.PrepareFolders()
+	store.PrepareWorkers()
 
 	router := &Router{}
 	router.AddRoute("GetQueue", "GET", "^/(?P<queue>[a-z]+)$")
