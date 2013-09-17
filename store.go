@@ -235,26 +235,19 @@ func (store *Store) FetchMessage(queue *Queue) *Message {
 }
 
 func (store *Store) DeleteMessage(queue *Queue, message *Message) bool {
-	// The currently available messages in the queue is the most likely
-	// place the message will exist.
-	err := os.Remove(path.Join(store.QueuesFolder, queue.Id, message.Id))
-
-	if err == nil {
-		return true
+	file := queue.Id + ":" + message.Id
+	sources := [3]string{
+		path.Join(store.QueuesFolder, queue.Id, message.Id),
+		path.Join(store.DelayFolder, file),
+		path.Join(store.NewFolder, file),
 	}
 
-	// Next, the delayed messages folder.
-	err = os.Remove(path.Join(store.DelayFolder, queue.Id+":"+message.Id))
+	for _, source := range sources {
+		err := os.Rename(source, path.Join(store.RemoveFolder, file))
 
-	if err == nil {
-		return true
-	}
-
-	// Finally, the new messages folder.
-	err = os.Remove(path.Join(store.NewFolder, queue.Id+":"+message.Id))
-
-	if err == nil {
-		return true
+		if err == nil {
+			return true
+		}
 	}
 
 	return false
