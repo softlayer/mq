@@ -7,15 +7,16 @@ import (
 )
 
 var (
-	testRoot       string = "/tmp/mq-test"
 	testWorkers    int    = 1
+	testPeers      int    = 1
+	testRoot       string = "/tmp/mq-test"
 	queueId        string = "q"
 	messageId      string = "m"
 	messageContent []byte = []byte("abcdefghijklmnopqrstuvwxyz")
 )
 
 func setup() *Store {
-	store := NewStore(testWorkers, testRoot)
+	store := NewStore(testWorkers, testPeers, testRoot)
 
 	store.PrepareFolders()
 	store.PrepareWorkers()
@@ -31,10 +32,10 @@ func TestFolderCreation(t *testing.T) {
 	store := setup()
 
 	folders := make(map[string]string)
-	folders["root"] = store.RootPaths[0]
-	folders["new"] = store.NewFolders[0]
-	folders["delay"] = store.DelayFolders[0]
-	folders["queues"] = store.QueuesFolders[0]
+	folders["root"] = store.Root
+	folders["new"] = store.NewFolder
+	folders["delay"] = store.DelayFolder
+	folders["queues"] = store.QueuesFolder
 
 	for name, folder := range folders {
 		if os.Chdir(folder) != nil {
@@ -49,7 +50,7 @@ func TestQueueLifecycle(t *testing.T) {
 	store := setup()
 
 	queue := &Queue{Id: queueId}
-	queuePath := path.Join(store.QueuesFolders[0], queue.Id)
+	queuePath := path.Join(store.QueuesFolder, queue.Id)
 
 	// Can we create a queue?
 	store.SaveQueue(queue)
@@ -83,9 +84,9 @@ func TestMessageLifecycle(t *testing.T) {
 
 	// All the pathing we will need to check as the message moves through its
 	// lifecycle.
-	messagePathNew := path.Join(store.NewFolders[0], file)
-	messagePathAvailable := path.Join(store.QueuesFolders[0], queueId, messageId)
-	messagePathDelay := path.Join(store.DelayFolders[0], file)
+	messagePathNew := path.Join(store.NewFolder, file)
+	messagePathAvailable := path.Join(store.QueuesFolder, queueId, messageId)
+	messagePathDelay := path.Join(store.DelayFolder, file)
 
 	store.SaveQueue(queue)
 	store.SaveMessage(queue, message)

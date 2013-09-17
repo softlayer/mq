@@ -3,10 +3,8 @@ package main
 import (
 	"hash/crc32"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"path"
-	"strings"
 )
 
 type Queue struct {
@@ -24,13 +22,13 @@ type FetchRequest struct {
 }
 
 type Store struct {
-	Paths         int
 	Workers       int
-	RootPaths     []string
-	NewFolders    []string
-	DelayFolders  []string
-	QueuesFolders []string
-	RemoveFolders []string
+	Peers         int
+	Root          string
+	NewFolder     string
+	DelayFolder   string
+	QueuesFolder  string
+	RemoveFolder  string
 	FetchRequests []chan *FetchRequest
 }
 
@@ -47,7 +45,7 @@ func NextFile(dirPath string) string {
 
 	defer dir.Close()
 
-	files, err := dir.Readdir(1)
+	files, err := dir.Readdir(dirScanDepth)
 
 	if err != nil || len(files) == 0 {
 		return ""
@@ -56,44 +54,26 @@ func NextFile(dirPath string) string {
 	return files[0].Name()
 }
 
-func NewStore(workers int, root string) *Store {
+func NewStore(workers int, peers int, root string) *Store {
 	store := &Store{}
-	store.RootPaths = strings.Split(root, ",")
-
-	// To be use in the modulo against our checksums for
-	// either worker or pathing targets.
-	store.Paths = len(store.RootPaths)
 	store.Workers = workers
+	store.Peers = peers
+	store.Root = root
 
 	return store
 }
 
 func (store *Store) PrepareFolders() {
-	numRoots := len(store.RootPaths)
+	store.NewFolder = path.Join(store.Root, "new")
+	store.DelayFolder = path.Join(store.Root, "delay")
+	store.QueuesFolder = path.Join(store.Root, "queues")
+	store.RemoveFolder = path.Join(store.Root, "remove")
 
-	if numRoots <= 0 {
-		panic("This storage engine requires at least one root path.")
-	}
-
-	store.NewFolders = make([]string, numRoots)
-	store.DelayFolders = make([]string, numRoots)
-	store.QueuesFolders = make([]string, numRoots)
-	store.RemoveFolders = make([]string, numRoots)
-
-	for i, root := range store.RootPaths {
-		store.NewFolders[i] = path.Join(root, "new")
-		store.DelayFolders[i] = path.Join(root, "delay")
-		store.QueuesFolders[i] = path.Join(root, "queues")
-		store.RemoveFolders[i] = path.Join(root, "remove")
-	}
-
-	// As our root paths are all the same underlying file system,
-	// we only need to create these directories once.
-	os.Mkdir(store.RootPaths[0], 0777)
-	os.Mkdir(store.NewFolders[0], 0777)
-	os.Mkdir(store.DelayFolders[0], 0777)
-	os.Mkdir(store.QueuesFolders[0], 0777)
-	os.Mkdir(store.RemoveFolders[0], 0777)
+	os.Mkdir(store.Root, 0777)
+	os.Mkdir(store.NewFolder, 0777)
+	os.Mkdir(store.DelayFolder, 0777)
+	os.Mkdir(store.QueuesFolder, 0777)
+	os.Mkdir(store.RemoveFolder, 0777)
 }
 
 func (store *Store) PrepareWorkers() {
@@ -107,7 +87,7 @@ func (store *Store) PrepareWorkers() {
 }
 
 func (store *Store) FetchRequestFromFile(request *FetchRequest) *Message {
-	queuePath := path.Join(store.QueuesFolders[rand.Intn(store.Paths)], request.Queue.Id)
+	queuePath := path.Join(store.QueuesFolder, request.Queue.Id)
 	messageId := NextFile(queuePath)
 
 	if messageId == "" {
@@ -140,7 +120,7 @@ func (store *Store) FetchRequestFromFile(request *FetchRequest) *Message {
 	}
 
 	// Got it! Move the file and return our message.
-	os.Rename(messagePath, path.Join(store.DelayFolders[rand.Intn(store.Paths)], request.Queue.Id+":"+message.Id))
+	os.Rename(messagePath, path.Join(store.DelayFolder, request.Queue.Id+":"+message.Id))
 
 	return message
 }
@@ -153,11 +133,11 @@ func (store *Store) MessageFetcher(index int) {
 }
 
 func (store *Store) SaveQueue(queue *Queue) {
-	os.Mkdir(path.Join(store.QueuesFolders[rand.Intn(store.Paths)], queue.Id), 0777)
+	os.Mkdir(path.Join(store.QueuesFolder, queue.Id), 0777)
 }
 
 func (store *Store) FetchQueue(queue *Queue) *Queue {
-	_, err := os.Stat(path.Join(store.QueuesFolders[rand.Intn(store.Paths)], queue.Id))
+	_, err := os.Stat(path.Join(store.QueuesFolder, queue.Id))
 
 	if err != nil {
 		return nil
@@ -169,12 +149,12 @@ func (store *Store) FetchQueue(queue *Queue) *Queue {
 }
 
 func (store *Store) DeleteQueue(queue *Queue) {
-	os.RemoveAll(path.Join(store.QueuesFolders[rand.Intn(store.Paths)], queue.Id))
+	os.RemoveAll(path.Join(store.QueuesFolder, queue.Id))
 }
 
 func (store *Store) SaveMessage(queue *Queue, message *Message) bool {
 	messageFile := queue.Id + ":" + message.Id
-	messagePath := path.Join(store.NewFolders[rand.Intn(store.Paths)], messageFile)
+	messagePath := path.Join(store.NewFolder, messageFile)
 
 	file, err := os.OpenFile(messagePath, os.O_RDWR|os.O_CREATE, 0777)
 
@@ -224,21 +204,21 @@ func (store *Store) FetchMessage(queue *Queue) *Message {
 func (store *Store) DeleteMessage(queue *Queue, message *Message) bool {
 	// The currently available messages in the queue is the most likely
 	// place the message will exist.
-	err := os.Remove(path.Join(store.QueuesFolders[rand.Intn(store.Paths)], queue.Id, message.Id))
+	err := os.Remove(path.Join(store.QueuesFolder, queue.Id, message.Id))
 
 	if err == nil {
 		return true
 	}
 
 	// Next, the delayed messages folder.
-	err = os.Remove(path.Join(store.DelayFolders[rand.Intn(store.Paths)], queue.Id+":"+message.Id))
+	err = os.Remove(path.Join(store.DelayFolder, queue.Id+":"+message.Id))
 
 	if err == nil {
 		return true
 	}
 
 	// Finally, the new messages folder.
-	err = os.Remove(path.Join(store.NewFolders[rand.Intn(store.Paths)], queue.Id+":"+message.Id))
+	err = os.Remove(path.Join(store.NewFolder, queue.Id+":"+message.Id))
 
 	if err == nil {
 		return true

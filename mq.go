@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	root    string
 	workers int
+	peers   int
+	root    string
 )
 
 type FrontHandler struct {
@@ -45,12 +46,13 @@ func (handler *FrontHandler) ServeHTTP(response http.ResponseWriter, request *ht
 
 func init() {
 	flag.IntVar(&workers, "workers", 1, "Number of workers")
+	flag.IntVar(&peers, "peers", 1, "Number of peers")
 	flag.StringVar(&root, "root", "/tmp/mq", "File system storage path")
 	flag.Parse()
 }
 
 func main() {
-	store := NewStore(workers, root)
+	store := NewStore(workers, peers, root)
 
 	// Our storage mechanism needs to make sure our folders
 	// and workers are standing up.
