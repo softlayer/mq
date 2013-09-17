@@ -3,6 +3,7 @@ package main
 import (
 	"hash/crc32"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path"
 )
@@ -14,6 +15,12 @@ type Queue struct {
 type Message struct {
 	Id      string
 	Content []byte
+}
+
+type SaveRequest struct {
+	Queue    *Queue
+	Message  *Message
+	Response chan bool
 }
 
 type FetchRequest struct {
@@ -29,6 +36,7 @@ type Store struct {
 	DelayFolder   string
 	QueuesFolder  string
 	RemoveFolder  string
+	SaveRequests  []chan *SaveRequest
 	FetchRequests []chan *FetchRequest
 }
 
@@ -45,7 +53,7 @@ func NextFile(dirPath string) string {
 
 	defer dir.Close()
 
-	files, err := dir.Readdir(dirScanDepth)
+	files, err := dir.Readdir(1)
 
 	if err != nil || len(files) == 0 {
 		return ""
@@ -77,13 +85,51 @@ func (store *Store) PrepareFolders() {
 }
 
 func (store *Store) PrepareWorkers() {
+	store.SaveRequests = make([]chan *SaveRequest, store.Workers)
 	store.FetchRequests = make([]chan *FetchRequest, store.Workers)
 
 	for i := 0; i < workers; i++ {
+		store.SaveRequests[i] = make(chan *SaveRequest)
 		store.FetchRequests[i] = make(chan *FetchRequest)
 
+		go store.MessageSaver(i)
 		go store.MessageFetcher(i)
 	}
+}
+
+func (store *Store) SaveRequestToFile(request *SaveRequest) bool {
+	messageFile := request.Queue.Id + ":" + request.Message.Id
+	messagePath := path.Join(store.NewFolder, messageFile)
+
+	file, err := os.OpenFile(messagePath, os.O_RDWR|os.O_CREATE, 0777)
+
+	// If we weren't able to open the file for writing,
+	// exit early. No need to close it.
+	if err != nil {
+		return false
+	}
+
+	defer file.Close()
+
+	n, err := file.Write(request.Message.Content)
+
+	// Could we write the entire message? If we couldn't, we
+	// need to clean up and report back.
+	if n < len(request.Message.Content) {
+		// Nuke the file...
+		os.Remove(messagePath)
+
+		// ...and return a negative response.
+		return false
+	}
+
+	// If we couldn't write at all, break out. The defer will
+	// close the handle.
+	if err != nil {
+		return false
+	}
+
+	return true
 }
 
 func (store *Store) FetchRequestFromFile(request *FetchRequest) *Message {
@@ -125,9 +171,16 @@ func (store *Store) FetchRequestFromFile(request *FetchRequest) *Message {
 	return message
 }
 
-func (store *Store) MessageFetcher(index int) {
+func (store *Store) MessageSaver(i int) {
 	for {
-		request := <-store.FetchRequests[index]
+		request := <-store.SaveRequests[i]
+		request.Response <- store.SaveRequestToFile(request)
+	}
+}
+
+func (store *Store) MessageFetcher(i int) {
+	for {
+		request := <-store.FetchRequests[i]
 		request.Response <- store.FetchRequestFromFile(request)
 	}
 }
@@ -153,38 +206,18 @@ func (store *Store) DeleteQueue(queue *Queue) {
 }
 
 func (store *Store) SaveMessage(queue *Queue, message *Message) bool {
-	messageFile := queue.Id + ":" + message.Id
-	messagePath := path.Join(store.NewFolder, messageFile)
-
-	file, err := os.OpenFile(messagePath, os.O_RDWR|os.O_CREATE, 0777)
-
-	// If we weren't able to open the file for writing,
-	// exit early. No need to close it.
-	if err != nil {
-		return false
+	request := &SaveRequest{
+		Queue:    queue,
+		Message:  message,
+		Response: make(chan bool),
 	}
 
-	defer file.Close()
+	// It doesn't matter which channel the request is dropped into. What
+	// we're concerned about here is this app server clobbering its peers
+	// on the same machine.
+	store.SaveRequests[rand.Intn(store.Workers)] <- request
 
-	n, err := file.Write(message.Content)
-
-	// Could we write the entire message? If we couldn't, we
-	// need to clean up and report back.
-	if n < len(message.Content) {
-		// Nuke the file...
-		os.Remove(messagePath)
-
-		// ...and return a negative response.
-		return false
-	}
-
-	// If we couldn't write at all, break out. The defer will
-	// close the handle.
-	if err != nil {
-		return false
-	}
-
-	return true
+	return <-request.Response
 }
 
 func (store *Store) FetchMessage(queue *Queue) *Message {
