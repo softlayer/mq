@@ -7,8 +7,8 @@ USER=root
 HOST=198.23.111.7
 
 $GO build -o build/mq        mq.go route.go endpoint.go store.go uuid.go
-$GO build -o build/mq-mover  bin/mover.go
-$GO build -o build/mq-reaper bin/reaper.go
+$GO build -o build/mq-mover  bin/mover.go bin/watch.go
+$GO build -o build/mq-reaper bin/reaper.go bin/watch.go
 
 scp etc/sysctl.conf $USER@$HOST:/etc/sysctl.conf
 scp etc/security/limits.conf $USER@$HOST:/etc/security/limits.conf

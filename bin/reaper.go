@@ -1,16 +1,32 @@
 package main
 
 import (
-	"fmt"
-	"time"
+	"flag"
+	"log"
+	"os"
 )
 
+var (
+	source string
+)
+
+func init() {
+	flag.StringVar(&source, "source", "/tmp/mq/remove", "Source for messages to be removed")
+	flag.Parse()
+}
+
 func main() {
-	limiter := time.Tick(10 * time.Millisecond)
+	watch := &Watch{
+		Directory: source,
+	}
 
-	for i := 0; i < 10; i++ {
-		<-limiter
+	watch.Run()
 
-		fmt.Println(i)
+	for file := range watch.Files {
+		err := os.Remove(file)
+
+		if err != nil {
+			log.Print(err)
+		}
 	}
 }

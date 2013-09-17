@@ -30,6 +30,7 @@ type Store struct {
 	NewFolders    []string
 	DelayFolders  []string
 	QueuesFolders []string
+	RemoveFolders []string
 	FetchRequests []chan *FetchRequest
 }
 
@@ -77,11 +78,13 @@ func (store *Store) PrepareFolders() {
 	store.NewFolders = make([]string, numRoots)
 	store.DelayFolders = make([]string, numRoots)
 	store.QueuesFolders = make([]string, numRoots)
+	store.RemoveFolders = make([]string, numRoots)
 
 	for i, root := range store.RootPaths {
 		store.NewFolders[i] = path.Join(root, "new")
 		store.DelayFolders[i] = path.Join(root, "delay")
 		store.QueuesFolders[i] = path.Join(root, "queues")
+		store.RemoveFolders[i] = path.Join(root, "remove")
 	}
 
 	// As our root paths are all the same underlying file system,
@@ -90,6 +93,7 @@ func (store *Store) PrepareFolders() {
 	os.Mkdir(store.NewFolders[0], 0777)
 	os.Mkdir(store.DelayFolders[0], 0777)
 	os.Mkdir(store.QueuesFolders[0], 0777)
+	os.Mkdir(store.RemoveFolders[0], 0777)
 }
 
 func (store *Store) PrepareWorkers() {
