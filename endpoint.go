@@ -56,7 +56,7 @@ func CreateMessage(session *Session) {
 	}
 
 	message := &Message{
-		Id:      getRandomUUID(),
+		Id:      TimeUUID(),
 		Content: body,
 	}
 

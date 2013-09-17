@@ -162,7 +162,7 @@ func BenchmarkMessageCreation(b *testing.B) {
 	store.SaveQueue(queue)
 
 	for i := 0; i < b.N; i++ {
-		message := &Message{Id: getRandomUUID(), Content: messageContent}
+		message := &Message{Id: TimeUUID(), Content: messageContent}
 		store.SaveMessage(queue, message)
 	}
 
