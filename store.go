@@ -129,6 +129,8 @@ func (store *Store) SaveRequestToFile(request *SaveRequest) bool {
 		return false
 	}
 
+	file.Sync()
+
 	return true
 }
 

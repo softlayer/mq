@@ -45,8 +45,8 @@ func (handler *FrontHandler) ServeHTTP(response http.ResponseWriter, request *ht
 }
 
 func init() {
-	flag.IntVar(&workers, "workers", 1, "Number of workers")
-	flag.IntVar(&peers, "peers", 1, "Number of peers")
+	flag.IntVar(&workers, "workers", 8, "Number of workers")
+	flag.IntVar(&peers, "peers", 0, "Number of peers")
 	flag.StringVar(&root, "root", "/tmp/mq", "File system storage path")
 	flag.Parse()
 }
