@@ -80,15 +80,21 @@ MQ-Core is comprised of 3 daemons. In order for the system to remain available, 
 
 *Handles all requests for the HTTP endpoints.*
 
-```--workers```
+```
+--workers=8
+```
 
 The number of internal worker pairs to spawn. For each increment of this value, one message fetching worker and one message saving worker will be started. Defaults to **8**.
 
-```--peers```
+```
+--peers=0
+```
 
 The number of peers to take into consideration when fetching messages. Defaults to **0**.
 
-```--root```
+```
+--root=/tmp/mq
+```
 
 The directory in which the folder structure will be created. Must be writable. Defaults to **/tmp/mq**.
 
@@ -96,15 +102,21 @@ The directory in which the folder structure will be created. Must be writable. D
 
 *Used for moving files between source to destination directories, optionally with a delay per file.*
 
-```--source```
+```
+--source
+```
 
 The directory from which files will be taken. Must be readable. No default, this is required.
 
-```--destination```
+```
+--destination
+```
 
 The directory to which files will be delivered. Must be writable. No default, this is required.
 
-```--delay```
+```
+--delay=0
+```
 
 The time, in seconds, to wait after taking and before delivering a file to its destination. Defaults to **0**.
 
@@ -112,7 +124,11 @@ The time, in seconds, to wait after taking and before delivering a file to its d
 
 *Removes files from a source directory.*
 
-```--source``` The directory from which files will be unlinked. Must be writable.
+```
+--source=/tmp/mq/remove
+```
+
+The directory from which files will be unlinked. Must be writable. Defaults to **/tmp/mq/remove**.
 
 ## Folders
 
