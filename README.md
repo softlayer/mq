@@ -74,24 +74,70 @@ The ID provided should be the same ID returned from fetching or adding a message
 
 ## Daemons
 
-**mq**
+MQ-Core is comprised of 3 daemons. In order for the system to remain available, only the **mq** daemon must be running and responsive.
 
-**mq-mover**
+#### mq
 
-**mq-reaper**
+*Handles all requests for the HTTP endpoints.*
+
+```--workers```
+
+The number of internal worker pairs to spawn. For each increment of this value, one message fetching worker and one message saving worker will be started. Defaults to **8**.
+
+```--peers```
+
+The number of peers to take into consideration when fetching messages. Defaults to **0**.
+
+```--root```
+
+The directory in which the folder structure will be created. Must be writable. Defaults to **/tmp/mq**.
+
+#### mq-mover
+
+*Used for moving files between source to destination directories, optionally with a delay per file.*
+
+```--source```
+
+The directory from which files will be taken. Must be readable. No default, this is required.
+
+```--destination```
+
+The directory to which files will be delivered. Must be writable. No default, this is required.
+
+```--delay```
+
+The time, in seconds, to wait after taking and before delivering a file to its destination. Defaults to **0**.
+
+#### mq-reaper
+
+*Removes files from a source directory.*
+
+```--source``` The directory from which files will be unlinked. Must be writable.
 
 ## Folders
+
+The first time the **mq** daemon is started, this folder structure is created under the specified root directory.
 
 ```
 /new
 /queues
-    /queue1
-    /queue2
-    /queue3
+    /queue001
+    /queue002
+    /queue003
     ...
 /delay
 /remove
 ```
+
+**/new**: Contains inbound messages.
+
+**/queues**: Contains one folder per queue.
+
+**/queues/queue00{1,2,3,...}**: Each contains one file per message for the queue it represents.
+
+**/delay**: Contains message files recently fetched.
+
+**/remove**: Contains message files to be removed.
 
 ## Message Lifecycle
 
@@ -126,7 +172,3 @@ Once the message arrives in the **remove** folder, at some point in the future i
 ## Message Movement
 
 A message is only ever written once. A message is only ever unlinked once. All delivery, re-delivery, delay and removal activity is achieved through file system move operations. This should be taken into consideration when dealing with distributed file systems, partition boundaries, and file system journals.
-
-## Clustering
-
-TODO
