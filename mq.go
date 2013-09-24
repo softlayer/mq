@@ -11,6 +11,8 @@ var (
 	workers int
 	peers   int
 	root    string
+	port    string
+	address string
 )
 
 type FrontHandler struct {
@@ -48,6 +50,8 @@ func init() {
 	flag.IntVar(&workers, "workers", 8, "Number of workers")
 	flag.IntVar(&peers, "peers", 0, "Number of peers")
 	flag.StringVar(&root, "root", "/tmp/mq", "File system storage path")
+	flag.StringVar(&port, "port", "8080", "Port to listen on")
+	flag.StringVar(&address, "address", "0.0.0.0", "Address to listen on")
 	flag.Parse()
 }
 
@@ -83,7 +87,7 @@ func main() {
 	handler.Endpoints["DeleteMessage"] = DeleteMessage
 
 	server := &http.Server{
-		Addr:           ":8080",
+		Addr:           address + ":" + port,
 		Handler:        handler,
 		ReadTimeout:    120 * time.Second,
 		WriteTimeout:   120 * time.Second,
