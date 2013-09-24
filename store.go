@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"time"
 )
 
 type Queue struct {
@@ -29,6 +30,9 @@ type FetchRequest struct {
 }
 
 type Store struct {
+	Race      int
+	Duplicate int
+
 	Workers       int
 	Peers         int
 	Root          string
@@ -42,24 +46,6 @@ type Store struct {
 
 func Checksum(id string) int {
 	return int(crc32.ChecksumIEEE([]byte(id)))
-}
-
-func NextFile(dirPath string) string {
-	dir, err := os.Open(dirPath)
-
-	if err != nil {
-		return ""
-	}
-
-	defer dir.Close()
-
-	files, err := dir.Readdir(1)
-
-	if err != nil || len(files) == 0 {
-		return ""
-	}
-
-	return files[0].Name()
 }
 
 func NewStore(workers int, peers int, root string) *Store {
@@ -88,7 +74,7 @@ func (store *Store) PrepareWorkers() {
 	store.SaveRequests = make([]chan *SaveRequest, store.Workers)
 	store.FetchRequests = make([]chan *FetchRequest, store.Workers)
 
-	for i := 0; i < workers; i++ {
+	for i := 0; i < store.Workers; i++ {
 		store.SaveRequests[i] = make(chan *SaveRequest)
 		store.FetchRequests[i] = make(chan *FetchRequest)
 
@@ -136,27 +122,59 @@ func (store *Store) SaveRequestToFile(request *SaveRequest) bool {
 
 func (store *Store) FetchRequestFromFile(request *FetchRequest) *Message {
 	queuePath := path.Join(store.QueuesFolder, request.Queue.Id)
-	messageId := NextFile(queuePath)
-
-	if messageId == "" {
-		return nil
-	}
-
-	messagePath := path.Join(queuePath, messageId)
-
-	// We don't need to lock anything. Our fetch requests have been
-	// piplelined to this piont.
-	file, err := os.Open(messagePath)
+	queueDir, err := os.Open(queuePath)
 
 	if err != nil {
 		return nil
 	}
 
-	defer file.Close()
+	defer queueDir.Close()
 
-	// We can still fail here. Make sure to account for a nasty
-	// read failure.
-	messageContent, err := ioutil.ReadAll(file)
+	// We need to pull back at least peers+1 files so we can randomly
+	// select from a list of available message IDs near the beginning
+	// of this queue.
+	messageIds, err := queueDir.Readdirnames(store.Peers + 1)
+	messageCount := len(messageIds)
+
+	if err != nil || messageCount == 0 {
+		return nil
+	}
+
+	// In the case we didn't get back enough to make an immediate
+	// selection, delay our attempt by a random interval.
+	if messageCount <= store.Peers {
+		time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+	}
+
+	// Finally, pull a random message ID out of our list. In the case
+	// of peers = 0, this will simply pull the first message.
+	messageId := messageIds[rand.Intn(messageCount)]
+	messagePath := path.Join(queuePath, messageId)
+
+	messageFile, err := os.Open(messagePath)
+
+	// Even after attempting to randomize and slow down, we've lost
+	// the race to open this file.
+	if err != nil {
+		store.Race += 1
+		return nil
+	}
+
+	defer messageFile.Close()
+
+	// We can rename an open file handle. This protects us against
+	// rampant duplication. We will still be able to read from it.
+	err = os.Rename(messagePath, path.Join(store.DelayFolder, request.Queue.Id+":"+messageId))
+
+	// We have an open file handle, but couldn't rename it. Sombody
+	// else did. This is fine and we still return our message, but
+	// we need to record the duplication to further improve ourselves
+	// on the next attempt.
+	if err != nil {
+		store.Duplicate += 1
+	}
+
+	messageContent, err := ioutil.ReadAll(messageFile)
 
 	if err != nil {
 		return nil
@@ -166,9 +184,6 @@ func (store *Store) FetchRequestFromFile(request *FetchRequest) *Message {
 		Id:      messageId,
 		Content: messageContent,
 	}
-
-	// Got it! Move the file and return our message.
-	os.Rename(messagePath, path.Join(store.DelayFolder, request.Queue.Id+":"+message.Id))
 
 	return message
 }

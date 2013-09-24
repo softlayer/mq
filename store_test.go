@@ -8,7 +8,7 @@ import (
 
 var (
 	testWorkers    int    = 1
-	testPeers      int    = 1
+	testPeers      int    = 0
 	testRoot       string = "/tmp/mq-test"
 	queueId        string = "q"
 	messageId      string = "m"
