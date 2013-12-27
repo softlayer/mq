@@ -1,14 +1,12 @@
-# MQ-Core
+# MQ
 
----
-
-Message Queue Core, or **MQ-Core**, is a simple HTTP-based durable message queue.
+Message Queue, or **MQ**, is a simple HTTP-based durable message queue.
 
 Each queue is represented as a folder on disk. Each message is stored as an individual file inside its respective queue's folder. Every operation is guaranteed to have been persisted to underlying media before a successful response is issued.
 
-Message durability, availability, movement and locking rely on POSIX file system semantics. This allows us to deploy MQ-Core on local, distributed, or in-memory file systems.
+Message durability, availability, movement and locking rely on POSIX file system semantics. This allows us to deploy MQ on local, distributed, or in-memory file systems.
 
-MQ-Core has a basic notion of how it should behave when clustered. The message fetching algorithm introduces a fuzziness based on the concept of a **peer**. This fuzziness allows for significant reduction in lock contention when fetching messages at the cost of guaranteed ordering. Guaranteed ordering is only lost when peer-awareness is required, however.
+MQ has a basic notion of how it should behave when clustered. The message fetching algorithm introduces a fuzziness based on the concept of a **peer**. This fuzziness allows for significant reduction in lock contention when fetching messages at the cost of guaranteed ordering. Guaranteed ordering is only lost when peer-awareness is required, however.
 
 ## Endpoints
 
@@ -74,7 +72,7 @@ The ID provided should be the same ID returned from fetching or adding a message
 
 ## Daemons
 
-MQ-Core is comprised of 3 daemons. In order for the system to remain available, only the **mq** daemon must be running and responsive.
+MQ is comprised of 3 daemons. In order for the system to remain available, only the **mq** daemon must be running and responsive.
 
 #### mq
 
@@ -195,4 +193,4 @@ Copyright © 2013 SoftLayer, an IBM Company. Our code and documentation is licen
 
 ## Acknowledgements
 
-The UUIDv1 algorithm is largely based on Christoph Hack's work for gocql's UUID module. The original work is BSD-licensed.
+The UUIDv1 algorithm is based on Christoph Hack's work for the UUID module in [tux21b/gocql](https://github.com/tux21b/gocql). The original work is BSD-licensed.
