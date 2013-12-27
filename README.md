@@ -188,3 +188,11 @@ Once the message arrives in the **remove** folder, at some point in the future i
 ## Message Movement
 
 A message is only ever written once. A message is only ever unlinked once. All delivery, re-delivery, delay and removal activity is achieved through file system move operations. This should be taken into consideration when dealing with distributed file systems, partition boundaries, and file system journals.
+
+## License
+
+Copyright © 2013 SoftLayer, an IBM Company. Our code and documentation is licensed under the MIT license. By contributing your code, you agree to license your contribution under the terms of this license.
+
+## Acknowledgements
+
+The UUIDv1 algorithm is largely based on Christoph Hack's work for gocql's UUID module. The original work is BSD-licensed.
