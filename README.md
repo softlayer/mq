@@ -171,7 +171,7 @@ In the event **peers** is larger than zero, the fetching behavior changes in an 
 
 TODO: Describe the fetching algorithm.
 
-#### Message Delay && Re-Delivery
+#### Message Delay & Re-Delivery
 
 During the fetching of a message, it is palced into the **delay** folder using the same file name it had at the time of its creation. So, **/queues/queue001/id** is moved to **/delay/queue001:id**. Upon arrival in the delay folder, a timer is applied to the message. Once this timer expires, the message is re-delivered to its queue. So, **/delay/queue001:id** is moved to **/queues/queue001/id**.
 
